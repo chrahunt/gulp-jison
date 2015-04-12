@@ -21,7 +21,23 @@ module.exports = function (options) {
 
         if (file.isBuffer()) {
             try {
-                file.contents = new Buffer(new Generator(file.contents.toString(), options).generate());
+                var generator = new Generator(file.contents.toString(), options);
+                // Add acceptable first symbols to parser.
+                var source = generator.generate({
+                    moduleName: options.moduleName || "Parser"
+                });
+                if (generator.computeLookaheads) {
+                    generator.computeLookaheads();
+                    var firsts = generator.nonterminals.$accept.first;
+                    // Text for insertion into source.
+                    firsts = "parser.firsts = " + JSON.stringify(firsts) + ";\n";
+                    var insertPoint = source.indexOf("return new Parser;");
+                    if (insertPoint !== -1) {
+                        source = source.slice(0, insertPoint) + firsts +
+                            source.slice(insertPoint);
+                    }
+                }
+                file.contents = new Buffer(source);
                 file.path = gutil.replaceExtension(file.path, ".js");
                 this.push(file);
             } catch (error) {
